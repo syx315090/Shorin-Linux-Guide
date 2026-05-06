@@ -11,6 +11,7 @@ ENABLE_NONFREE=0
 DRY_RUN=0
 ASSUME_YES=0
 TARGET_USER="${SUDO_USER:-${USER:-}}"
+DISPLAY_MANAGER_SERVICE=""
 
 log() {
   printf '\033[1;34m[shorin-debian]\033[0m %s\n' "$*"
@@ -196,6 +197,33 @@ apt_install_from_backports() {
   fi
 }
 
+apt_install_required_from_backports() {
+  local suite="$1"
+  shift
+
+  local missing=()
+  local pkg
+  for pkg in "$@"; do
+    if ! apt_has_package "$pkg"; then
+      missing+=("$pkg")
+    fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    die "Required Debian packages are unavailable: ${missing[*]}. Use Debian 13/trixie or newer with backports enabled."
+  fi
+
+  if [[ "$ENABLE_BACKPORTS" -eq 1 ]]; then
+    local args=(apt-get -t "$suite-backports" install)
+    if [[ "$ASSUME_YES" -eq 1 ]]; then
+      args+=(-y)
+    fi
+    sudo_run "${args[@]}" "$@"
+  else
+    apt_install "$@"
+  fi
+}
+
 enable_backports() {
   [[ "$ENABLE_BACKPORTS" -eq 1 ]] || return 0
 
@@ -238,7 +266,7 @@ install_base_packages() {
     fonts-font-awesome fonts-wqy-zenhei fonts-adobe-sourcesans3 fonts-adobe-sourcecodepro \
     vim neovim nano fish starship fzf zoxide jq ripgrep eza btop fastfetch yazi \
     firefox-esr thunar pavucontrol brightnessctl playerctl wl-clipboard grim slurp swappy satty \
-    mako-notifier fuzzel waybar swaylock wlogout copyq kitty foot ghostty sddm \
+    mako-notifier fuzzel waybar swaylock wlogout copyq kitty foot ghostty \
     fcitx5 fcitx5-chinese-addons fcitx5-rime fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
     fcitx5-frontend-qt5 kde-config-fcitx5 qt5ct qt6ct im-config
 }
@@ -248,7 +276,52 @@ install_niri_packages() {
   # shellcheck disable=SC1091
   . /etc/os-release
   local suite="${VERSION_CODENAME:-stable}"
-  apt_install_from_backports "$suite" niri xwayland-satellite swaybg swayidle
+  apt_install_required_from_backports "$suite" niri
+  apt_install_from_backports "$suite" xwayland-satellite swaybg swayidle
+
+  if [[ "$DRY_RUN" -ne 1 ]] && ! command -v niri >/dev/null 2>&1; then
+    die "Niri package installation finished, but the niri command was not found."
+  fi
+}
+
+is_package_installed() {
+  dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'install ok installed'
+}
+
+current_display_manager_service() {
+  if [[ -r /etc/X11/default-display-manager ]]; then
+    local configured
+    configured="$(basename "$(cat /etc/X11/default-display-manager)" | sed 's/\.service$//')"
+    if [[ -n "$configured" ]] && is_package_installed "$configured"; then
+      printf '%s\n' "$configured"
+      return 0
+    fi
+    warn "Ignoring stale display manager setting: ${configured:-unknown}"
+  fi
+
+  local candidate
+  for candidate in gdm3 sddm lightdm; do
+    if is_package_installed "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+}
+
+install_display_manager() {
+  DISPLAY_MANAGER_SERVICE="$(current_display_manager_service || true)"
+
+  if [[ -n "$DISPLAY_MANAGER_SERVICE" ]]; then
+    log "Keeping existing display manager: $DISPLAY_MANAGER_SERVICE"
+    return 0
+  fi
+
+  log "Installing SDDM display manager"
+  if [[ "$DRY_RUN" -ne 1 ]]; then
+    printf 'sddm shared/default-x-display-manager select sddm\n' | sudo_run debconf-set-selections || true
+  fi
+  apt_install sddm
+  DISPLAY_MANAGER_SERVICE="sddm"
 }
 
 configure_services() {
@@ -257,9 +330,68 @@ configure_services() {
     sudo_run systemctl enable NetworkManager || warn "Could not enable NetworkManager."
     sudo_run systemctl enable bluetooth || warn "Could not enable bluetooth."
     sudo_run systemctl enable cups || warn "Could not enable cups."
-    sudo_run systemctl enable sddm || warn "Could not enable sddm."
+    if [[ -n "$DISPLAY_MANAGER_SERVICE" ]]; then
+      sudo_run systemctl enable "$DISPLAY_MANAGER_SERVICE" || warn "Could not enable $DISPLAY_MANAGER_SERVICE."
+    else
+      warn "No display manager service was selected."
+    fi
   else
     warn "systemctl was not found; services were not enabled automatically."
+  fi
+}
+
+install_niri_session_file() {
+  local session_file="/usr/share/wayland-sessions/niri.desktop"
+  local portals_file="/usr/share/xdg-desktop-portal/niri-portals.conf"
+  local exec_line=""
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] write %s\n' "$session_file"
+    printf '[dry-run] write %s\n' "$portals_file"
+    return 0
+  fi
+
+  sudo_run mkdir -p /usr/share/wayland-sessions
+  sudo_run mkdir -p /usr/share/xdg-desktop-portal
+
+  if command -v niri-session >/dev/null 2>&1; then
+    exec_line="niri-session"
+  elif command -v niri >/dev/null 2>&1; then
+    exec_line="dbus-run-session niri --session"
+  else
+    die "Cannot create Niri session file because neither niri-session nor niri was found."
+  fi
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    cat >"$session_file" <<EOF
+[Desktop Entry]
+Name=Niri
+Comment=A scrollable-tiling Wayland compositor
+Exec=$exec_line
+Type=Application
+DesktopNames=niri
+EOF
+    cat >"$portals_file" <<'EOF'
+[preferred]
+default=gtk
+org.freedesktop.impl.portal.Access=gtk
+org.freedesktop.impl.portal.Notification=gtk
+EOF
+  else
+    sudo tee "$session_file" >/dev/null <<EOF
+[Desktop Entry]
+Name=Niri
+Comment=A scrollable-tiling Wayland compositor
+Exec=$exec_line
+Type=Application
+DesktopNames=niri
+EOF
+    sudo tee "$portals_file" >/dev/null <<'EOF'
+[preferred]
+default=gtk
+org.freedesktop.impl.portal.Access=gtk
+org.freedesktop.impl.portal.Notification=gtk
+EOF
   fi
 }
 
@@ -568,6 +700,8 @@ main() {
 
   install_base_packages
   install_niri_packages
+  install_display_manager
+  install_niri_session_file
 
   configure_locale_and_input
   configure_flatpak

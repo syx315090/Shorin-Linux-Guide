@@ -132,6 +132,7 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree --no
 - 复制 `legacy/.config`、`legacy/.local/share/fcitx5`、可选复制 `wallpapers`
 - 生成 Debian 可启动的 `~/.config/niri/config.kdl`
 - 生成 `~/.config/waybar/config-niri`
+- 生成 `/usr/share/wayland-sessions/niri.desktop`
 - 备份已有配置到 `.bak.时间戳`
 
 ## 7. 重启并进入 Niri
@@ -188,9 +189,38 @@ reboot
 
 ```bash
 command -v niri
+ls /usr/share/wayland-sessions/
 ```
 
-如果没有输出，说明 Debian 当前软件源没有安装到 Niri。建议升级到 Debian 13/trixie 或更新版本后重新运行脚本。
+如果 `command -v niri` 没有输出，说明 Debian 当前软件源没有安装到 Niri。建议升级到 Debian 13/trixie 或更新版本后重新运行脚本。
+
+如果有 `niri` 命令，但 `/usr/share/wayland-sessions/` 里没有 `niri.desktop`，重新运行新版脚本：
+
+```bash
+bash scripts/debian-install.sh --with-nonfree --no-wallpapers -y
+```
+
+新版脚本会自动生成 Niri 登录会话文件。
+
+### 安装时出现 gdm 和 sddm 相关错误
+
+这通常是系统里已经有 `gdm3`，脚本又安装 `sddm` 时触发 display manager 选择冲突。
+
+新版脚本会优先沿用已有的 `gdm3`、`sddm` 或 `lightdm`，只有没有显示管理器时才安装 `sddm`。更新脚本后重新运行即可：
+
+```bash
+git pull
+bash scripts/debian-install.sh --with-nonfree --no-wallpapers -y
+```
+
+如果你明确想使用 SDDM，可以手动切换：
+
+```bash
+sudo apt install -y sddm
+sudo dpkg-reconfigure sddm
+sudo systemctl enable sddm
+reboot
+```
 
 ### 中文输入法不能用
 

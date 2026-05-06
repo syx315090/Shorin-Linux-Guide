@@ -45,6 +45,7 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree -y
 - 终端、文件管理器、截图、通知、剪贴板等常用 Wayland 组件
 - 仓库中的 `legacy/.config`、`legacy/.local/share/fcitx5`
 - 可选复制 `wallpapers`
+- `/usr/share/wayland-sessions/niri.desktop` 登录会话文件
 
 ## 适配策略
 
@@ -52,7 +53,8 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree -y
 - `--no-backports` 可以关闭 backports，但不推荐。
 - `--with-nonfree` 会在创建 backports 源时加入 `contrib non-free non-free-firmware`。
 - `--no-wallpapers` 会跳过壁纸复制，适合 sparse clone。
-- Debian 源中没有的包会被跳过并输出 warning，脚本会尽量继续完成可安装部分。
+- Niri 是必需包，安装不到会直接报错；其他辅助包缺失时会输出 warning 并继续。
+- 脚本优先沿用已有的 `gdm3`、`sddm` 或 `lightdm`，只有没有显示管理器时才安装 `sddm`。
 - 脚本只接受 `ID=debian` 的系统，Ubuntu、Linux Mint、Kali 等不会运行。
 
 ## 配置文件处理
@@ -71,6 +73,8 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree -y
 脚本会生成一份基础 `~/.config/niri/config.kdl`，保留项目的键位风格和 Waybar/Fcitx5/Mako 自启动。
 
 Waybar 会生成 `~/.config/waybar/config-niri` 和 `~/.config/waybar/style.css`。
+
+登录管理器使用 `/usr/share/wayland-sessions/niri.desktop` 显示 Niri 会话；新版脚本会自动生成这个文件。
 
 已有配置会先备份为：
 
