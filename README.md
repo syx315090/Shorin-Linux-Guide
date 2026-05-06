@@ -3,7 +3,7 @@
   <br><br> 
   
   <a href="https://space.bilibili.com/9202840"><img src="https://img.shields.io/badge/Bilibili-关注我-pink?logo=bilibili" alt="Bilibili"></a>
-  <img src="https://img.shields.io/badge/Platform-Arch_Linux-blue?logo=arch-linux" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Arch_Linux%20%7C%20Debian-blue?logo=linux" alt="Platform">
   <a href="https://github.com/SHORiN-KiWATA/Shorin-ArchLinux-Guide/blob/main/LICENSE"><img src="https://img.shields.io/github/license/SHORiN-KiWATA/Shorin-ArchLinux-Guide" alt="License"></a>
 </div>
 
@@ -39,6 +39,14 @@
 - [**便利脚本：一键配置Arch Linux**](https://github.com/SHORiN-KiWATA/ShorinArchExperience-ArchlinuxGuide/wiki/%E4%B8%80%E9%94%AE%E9%85%8D%E7%BD%AE%E6%A1%8C%E9%9D%A2%E7%8E%AF%E5%A2%83)
 
     我的一键配置脚本。用于为安装好的Arch Linux和Arch衍生发行版进行所有必要的基础配置，还可以使用我的配置文件搭建桌面环境。
+
+- [**Debian 适配脚本**](docs/debian-adaptation.md)
+
+    用于在 Debian 上安装相同方向的桌面环境配置，支持 GNOME、Plasma、Hyprland、Niri、Fcitx5/Rime、PipeWire、Flatpak，并复用仓库中的旧配置和壁纸资源。
+
+- [**Debian 从零自动安装教程**](docs/debian-auto-install-tutorial.md)
+
+    面向刚安装完成、没有桌面环境的 Debian 系统，说明如何联网、安装最小工具、下载项目并通过脚本自动安装桌面环境。
 
 ## 电子榨菜
 
