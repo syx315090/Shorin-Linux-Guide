@@ -40,13 +40,13 @@
 
     我的一键配置脚本。用于为安装好的Arch Linux和Arch衍生发行版进行所有必要的基础配置，还可以使用我的配置文件搭建桌面环境。
 
-- [**Debian 适配脚本**](docs/debian-adaptation.md)
+- [**Debian Niri 适配脚本**](docs/debian-adaptation.md)
 
-    用于在 Debian 上安装相同方向的桌面环境配置，支持 GNOME、Plasma、Hyprland、Niri、Fcitx5/Rime、PipeWire、Flatpak，并复用仓库中的旧配置和壁纸资源。
+    用于在 Debian 上自动安装 Niri 桌面环境、Fcitx5/Rime、PipeWire、Flatpak，并复用仓库中的旧配置和壁纸资源。
 
-- [**Debian 从零自动安装教程**](docs/debian-auto-install-tutorial.md)
+- [**Debian 从零自动安装 Niri 教程**](docs/debian-auto-install-tutorial.md)
 
-    面向刚安装完成、没有桌面环境的 Debian 系统，说明如何联网、安装最小工具、下载项目并通过脚本自动安装桌面环境。
+    面向刚安装完成、没有桌面环境的 Debian 系统，说明如何联网、安装最小工具、快速下载项目并通过脚本自动安装 Niri。
 
 ## 电子榨菜
 

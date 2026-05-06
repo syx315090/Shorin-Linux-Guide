@@ -4,10 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
-PROFILES=()
 COPY_DOTFILES=1
 COPY_WALLPAPERS=1
-ENABLE_BACKPORTS=0
+ENABLE_BACKPORTS=1
 ENABLE_NONFREE=0
 DRY_RUN=0
 ASSUME_YES=0
@@ -32,10 +31,8 @@ Usage:
   scripts/debian-install.sh [options]
 
 Options:
-  --profile LIST       Comma separated profiles: base,gnome,plasma,hyprland,niri,all
-                       Default: base,gnome
   --target-user USER   User that receives dotfiles and user-level settings
-  --with-backports     Add Debian backports and prefer it for Hyprland/Niri packages
+  --no-backports       Do not add Debian backports; not recommended for Niri
   --with-nonfree       Add contrib, non-free and non-free-firmware components when creating backports
   --no-dotfiles        Install packages only
   --no-wallpapers      Do not copy wallpapers; useful with sparse clone
@@ -44,27 +41,27 @@ Options:
   -h, --help           Show this help
 
 Examples:
-  bash scripts/debian-install.sh --profile base,gnome
-  bash scripts/debian-install.sh --profile hyprland,niri --with-backports
-  bash scripts/debian-install.sh --profile all --with-backports --with-nonfree -y
+  bash scripts/debian-install.sh -y
+  bash scripts/debian-install.sh --with-nonfree --no-wallpapers -y
+  bash scripts/debian-install.sh --target-user shorin --with-nonfree -y
 USAGE
 }
 
 parse_args() {
   while (($#)); do
     case "$1" in
-      --profile)
-        [[ $# -ge 2 ]] || die "--profile requires a value"
-        IFS=',' read -r -a PROFILES <<<"$2"
-        shift 2
-        ;;
       --target-user)
         [[ $# -ge 2 ]] || die "--target-user requires a value"
         TARGET_USER="$2"
         shift 2
         ;;
       --with-backports)
+        # Kept for old documentation and scripts. Backports are enabled by default.
         ENABLE_BACKPORTS=1
+        shift
+        ;;
+      --no-backports)
+        ENABLE_BACKPORTS=0
         shift
         ;;
       --with-nonfree)
@@ -97,9 +94,6 @@ parse_args() {
     esac
   done
 
-  if [[ ${#PROFILES[@]} -eq 0 ]]; then
-    PROFILES=(base gnome)
-  fi
 }
 
 run() {
@@ -133,49 +127,6 @@ require_debian() {
 
 target_home() {
   getent passwd "$TARGET_USER" | cut -d: -f6
-}
-
-normalize_profiles() {
-  local expanded=()
-  local profile
-
-  for profile in "${PROFILES[@]}"; do
-    case "$profile" in
-      all)
-        expanded+=(base gnome plasma hyprland niri)
-        ;;
-      base|gnome|plasma|hyprland|niri)
-        expanded+=("$profile")
-        ;;
-      "")
-        ;;
-      *)
-        die "Unsupported profile: $profile"
-        ;;
-    esac
-  done
-
-  PROFILES=()
-  local seen=" "
-  for profile in "${expanded[@]}"; do
-    if [[ "$seen" != *" $profile "* ]]; then
-      PROFILES+=("$profile")
-      seen+="$profile "
-    fi
-  done
-
-  if [[ "$seen" != *" base "* ]]; then
-    PROFILES=(base "${PROFILES[@]}")
-  fi
-}
-
-has_profile() {
-  local needle="$1"
-  local profile
-  for profile in "${PROFILES[@]}"; do
-    [[ "$profile" == "$needle" ]] && return 0
-  done
-  return 1
 }
 
 apt_update() {
@@ -287,35 +238,13 @@ install_base_packages() {
     fonts-font-awesome fonts-wqy-zenhei fonts-adobe-sourcesans3 fonts-adobe-sourcecodepro \
     vim neovim nano fish starship fzf zoxide jq ripgrep eza btop fastfetch yazi \
     firefox-esr thunar pavucontrol brightnessctl playerctl wl-clipboard grim slurp swappy satty \
-    mako-notifier fuzzel waybar swaylock wlogout copyq kitty foot ghostty \
+    mako-notifier fuzzel waybar swaylock wlogout copyq kitty foot ghostty sddm \
     fcitx5 fcitx5-chinese-addons fcitx5-rime fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
     fcitx5-frontend-qt5 kde-config-fcitx5 qt5ct qt6ct im-config
 }
 
-install_gnome_packages() {
-  log "Installing GNOME profile"
-  apt_install gnome-core gdm3 gnome-tweaks gnome-shell-extensions gnome-software-plugin-flatpak
-}
-
-install_plasma_packages() {
-  log "Installing Plasma profile"
-  apt_install kde-plasma-desktop plasma-pa plasma-nm sddm dolphin konsole systemsettings kde-config-gtk-style
-}
-
-install_hyprland_packages() {
-  log "Installing Hyprland profile"
-  # Hyprland availability depends on Debian release and backports state.
-  # Missing packages are skipped with a warning, so the same script can run on bookworm, trixie and sid.
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  local suite="${VERSION_CODENAME:-stable}"
-  apt_install_from_backports "$suite" \
-    hyprland xdg-desktop-portal-hyprland hypridle hyprlock hyprpaper hyprland-guiutils \
-    swww swaybg cliphist wev waypaper
-}
-
 install_niri_packages() {
-  log "Installing Niri profile"
+  log "Installing Niri desktop packages"
   # shellcheck disable=SC1091
   . /etc/os-release
   local suite="${VERSION_CODENAME:-stable}"
@@ -328,12 +257,7 @@ configure_services() {
     sudo_run systemctl enable NetworkManager || warn "Could not enable NetworkManager."
     sudo_run systemctl enable bluetooth || warn "Could not enable bluetooth."
     sudo_run systemctl enable cups || warn "Could not enable cups."
-
-    if has_profile gnome; then
-      sudo_run systemctl enable gdm3 || warn "Could not enable gdm3."
-    elif has_profile plasma; then
-      sudo_run systemctl enable sddm || warn "Could not enable sddm."
-    fi
+    sudo_run systemctl enable sddm || warn "Could not enable sddm."
   else
     warn "systemctl was not found; services were not enabled automatically."
   fi
@@ -406,158 +330,6 @@ write_file() {
     return 0
   fi
   cat >"$dst" "$@"
-}
-
-install_hyprland_config() {
-  local home="$1"
-  local cfg="$home/.config/hypr"
-  run mkdir -p "$cfg"
-
-  if [[ -f "$cfg/hyprland.conf" ]]; then
-    run mv "$cfg/hyprland.conf" "$cfg/hyprland.legacy.conf"
-  fi
-
-  write_file "$cfg/hyprland.conf" <<'EOF'
-monitor=,preferred,auto,1
-
-$terminal = kitty -e fish
-$fileManager = thunar
-$menu = fuzzel
-$browser = firefox
-$mainMod = SUPER
-
-exec-once = waybar -c ~/.config/waybar/config-hyprland -s ~/.config/waybar/style.css
-exec-once = mako
-exec-once = fcitx5
-exec-once = copyq
-exec-once = wl-paste --watch cliphist store
-exec-once = swww-daemon
-
-env = LC_MESSAGES,zh_CN.UTF-8
-env = XCURSOR_SIZE,24
-env = HYPRCURSOR_SIZE,24
-env = QT_QPA_PLATFORMTHEME,qt6ct
-
-general {
-    gaps_in = 6
-    gaps_out = 8
-    border_size = 2
-    col.active_border = rgba(89b4faff) rgba(f5c2e7ff) 45deg
-    col.inactive_border = rgba(45475aff)
-    layout = dwindle
-}
-
-decoration {
-    rounding = 10
-    active_opacity = 0.98
-    inactive_opacity = 0.98
-    shadow {
-        enabled = true
-        range = 4
-        render_power = 3
-        color = rgba(11111bee)
-    }
-    blur {
-        enabled = true
-        size = 5
-        passes = 2
-        vibrancy = 0.16
-    }
-}
-
-animations {
-    enabled = true
-    bezier = easeOutQuint, 0.23, 1, 0.32, 1
-    animation = windows, 1, 4.8, easeOutQuint
-    animation = windowsOut, 1, 1.5, default
-    animation = fade, 1, 3, default
-    animation = workspaces, 1, 2, default, slidevert
-}
-
-dwindle {
-    pseudotile = true
-    preserve_split = true
-}
-
-misc {
-    force_default_wallpaper = 0
-    disable_hyprland_logo = true
-}
-
-input {
-    kb_layout = us
-    follow_mouse = 1
-    accel_profile = flat
-    touchpad {
-        natural_scroll = false
-    }
-}
-
-bind = $mainMod, T, exec, $terminal
-bind = $mainMod, Q, killactive,
-bind = $mainMod, M, exit,
-bind = $mainMod, E, exec, $fileManager
-bind = $mainMod, V, togglefloating,
-bind = $mainMod, Z, exec, $menu
-bind = $mainMod, B, exec, $browser
-bind = $mainMod ALT, F, fullscreen
-bind = $mainMod, F, fullscreen, 1
-bind = $mainMod, O, exec, pkill -SIGUSR1 waybar
-bind = $mainMod, F2, exec, pkill waybar || true && waybar
-bind = $mainMod ALT, L, exec, swaylock
-bind = $mainMod SHIFT, S, exec, grim -g "$(slurp)" - | sh -c 'if command -v satty >/dev/null 2>&1; then satty -f -; else swappy -f -; fi'
-bind = $mainMod ALT, A, exec, grim -g "$(slurp)" - | wl-copy
-
-bind = $mainMod, left, movefocus, l
-bind = $mainMod, right, movefocus, r
-bind = $mainMod, up, movefocus, u
-bind = $mainMod, down, movefocus, d
-bind = $mainMod, H, movefocus, l
-bind = $mainMod, L, movefocus, r
-bind = $mainMod, J, movefocus, d
-bind = $mainMod, K, movefocus, u
-bind = $mainMod CTRL, H, movewindow, l
-bind = $mainMod CTRL, L, movewindow, r
-bind = $mainMod CTRL, J, movewindow, d
-bind = $mainMod CTRL, K, movewindow, u
-
-bind = $mainMod, 1, workspace, 1
-bind = $mainMod, 2, workspace, 2
-bind = $mainMod, 3, workspace, 3
-bind = $mainMod, 4, workspace, 4
-bind = $mainMod, 5, workspace, 5
-bind = $mainMod, 6, workspace, 6
-bind = $mainMod, 7, workspace, 7
-bind = $mainMod, 8, workspace, 8
-bind = $mainMod, 9, workspace, 9
-bind = $mainMod CTRL, 1, movetoworkspace, 1
-bind = $mainMod CTRL, 2, movetoworkspace, 2
-bind = $mainMod CTRL, 3, movetoworkspace, 3
-bind = $mainMod CTRL, 4, movetoworkspace, 4
-bind = $mainMod CTRL, 5, movetoworkspace, 5
-bind = $mainMod CTRL, 6, movetoworkspace, 6
-bind = $mainMod CTRL, 7, movetoworkspace, 7
-bind = $mainMod CTRL, 8, movetoworkspace, 8
-bind = $mainMod CTRL, 9, movetoworkspace, 9
-
-bindm = $mainMod, mouse:272, movewindow
-bindm = $mainMod, mouse:273, resizewindow
-
-bindel = ,XF86AudioRaiseVolume, exec, wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+
-bindel = ,XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
-bindel = ,XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
-bindel = ,XF86MonBrightnessUp, exec, brightnessctl -e4 -n2 set 5%+
-bindel = ,XF86MonBrightnessDown, exec, brightnessctl -e4 -n2 set 5%-
-bindl = , XF86AudioNext, exec, playerctl next
-bindl = , XF86AudioPlay, exec, playerctl play-pause
-bindl = , XF86AudioPause, exec, playerctl play-pause
-bindl = , XF86AudioPrev, exec, playerctl previous
-
-windowrule = suppressevent maximize, class:.*
-windowrule = float, class:com.github.hluk.copyq
-windowrule = float, title:Select what to share
-layerrule = blur, notifications
-EOF
 }
 
 install_niri_config() {
@@ -666,45 +438,10 @@ install_waybar_config() {
   run mkdir -p "$cfg"
 
   [[ -f "$cfg/config" ]] && backup_path "$cfg/config"
-  [[ -f "$cfg/config-hyprland" ]] && backup_path "$cfg/config-hyprland"
   [[ -f "$cfg/config-niri" ]] && backup_path "$cfg/config-niri"
   [[ -f "$cfg/style.css" ]] && backup_path "$cfg/style.css"
 
-  if has_profile hyprland; then
-    write_file "$cfg/config-hyprland" <<'EOF'
-{
-  "layer": "top",
-  "position": "top",
-  "height": 34,
-  "spacing": 8,
-  "modules-left": ["custom/launcher", "hyprland/workspaces"],
-  "modules-center": ["clock"],
-  "modules-right": ["tray", "pulseaudio", "network", "battery"],
-  "custom/launcher": {
-    "format": "SHORiN",
-    "on-click": "fuzzel"
-  },
-  "clock": {
-    "format": "{:%Y-%m-%d %H:%M}"
-  },
-  "pulseaudio": {
-    "format": "VOL {volume}%",
-    "format-muted": "VOL muted"
-  },
-  "network": {
-    "format-wifi": "NET {essid}",
-    "format-ethernet": "NET wired",
-    "format-disconnected": "NET off"
-  },
-  "battery": {
-    "format": "BAT {capacity}%"
-  }
-}
-EOF
-  fi
-
-  if has_profile niri; then
-    write_file "$cfg/config-niri" <<'EOF'
+  write_file "$cfg/config-niri" <<'EOF'
 {
   "layer": "top",
   "position": "top",
@@ -734,14 +471,9 @@ EOF
   }
 }
 EOF
-  fi
 
   if [[ ! -f "$cfg/config" ]]; then
-    if has_profile hyprland; then
-      run cp "$cfg/config-hyprland" "$cfg/config"
-    elif has_profile niri; then
-      run cp "$cfg/config-niri" "$cfg/config"
-    fi
+    run cp "$cfg/config-niri" "$cfg/config"
   fi
 
   write_file "$cfg/style.css" <<'EOF'
@@ -792,7 +524,7 @@ install_dotfiles() {
   [[ -n "$home" && -d "$home" ]] || die "Could not determine home directory for user: $TARGET_USER"
 
   log "Installing configuration files for $TARGET_USER"
-  run mkdir -p "$home/.config" "$home/.local/share" "$home/Pictures/Shorin-Wallpapers"
+  run mkdir -p "$home/.config" "$home/.local/share"
 
   copy_tree "$REPO_ROOT/legacy/.config/foot" "$home/.config/foot"
   copy_tree "$REPO_ROOT/legacy/.config/ghostty" "$home/.config/ghostty"
@@ -802,22 +534,13 @@ install_dotfiles() {
   copy_tree "$REPO_ROOT/legacy/.config/niriswitcher" "$home/.config/niriswitcher"
   copy_tree "$REPO_ROOT/legacy/.local/share/fcitx5" "$home/.local/share/fcitx5"
   if [[ "$COPY_WALLPAPERS" -eq 1 ]]; then
+    run mkdir -p "$home/Pictures/Shorin-Wallpapers"
     copy_tree "$REPO_ROOT/wallpapers" "$home/Pictures/Shorin-Wallpapers"
   fi
 
-  if has_profile hyprland; then
-    copy_tree "$REPO_ROOT/legacy/.config/hypr" "$home/.config/hypr"
-    install_hyprland_config "$home"
-  fi
-
-  if has_profile niri; then
-    copy_tree "$REPO_ROOT/legacy/.config/niri" "$home/.config/niri"
-    install_niri_config "$home"
-  fi
-
-  if has_profile hyprland || has_profile niri; then
-    install_waybar_config "$home"
-  fi
+  copy_tree "$REPO_ROOT/legacy/.config/niri" "$home/.config/niri"
+  install_niri_config "$home"
+  install_waybar_config "$home"
 
   if [[ -f "$REPO_ROOT/legacy/.zshrc" ]]; then
     backup_path "$home/.zshrc"
@@ -827,7 +550,8 @@ install_dotfiles() {
   run find "$home/.config" "$home/.local" -type f -name '*.sh' -exec chmod +x {} +
 
   if [[ "$(id -un)" == "root" ]]; then
-    run chown -R "$TARGET_USER:$TARGET_USER" "$home/.config" "$home/.local" "$home/Pictures/Shorin-Wallpapers"
+    run chown -R "$TARGET_USER:$TARGET_USER" "$home/.config" "$home/.local"
+    [[ -d "$home/Pictures/Shorin-Wallpapers" ]] && run chown -R "$TARGET_USER:$TARGET_USER" "$home/Pictures/Shorin-Wallpapers"
     [[ -f "$home/.zshrc" ]] && run chown "$TARGET_USER:$TARGET_USER" "$home/.zshrc"
   fi
 }
@@ -835,26 +559,22 @@ install_dotfiles() {
 main() {
   parse_args "$@"
   require_debian
-  normalize_profiles
 
-  log "Profiles: ${PROFILES[*]}"
+  log "Desktop: Niri"
   log "Target user: $TARGET_USER"
 
   enable_backports
   apt_update
 
-  has_profile base && install_base_packages
-  has_profile gnome && install_gnome_packages
-  has_profile plasma && install_plasma_packages
-  has_profile hyprland && install_hyprland_packages
-  has_profile niri && install_niri_packages
+  install_base_packages
+  install_niri_packages
 
   configure_locale_and_input
   configure_flatpak
   configure_services
   install_dotfiles
 
-  log "Done. Reboot or log out, then choose GNOME, Plasma, Hyprland or Niri in the display manager."
+  log "Done. Reboot or log out, then choose Niri in the display manager."
 }
 
 main "$@"
