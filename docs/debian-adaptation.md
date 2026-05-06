@@ -36,6 +36,15 @@ bash scripts/debian-install.sh --profile hyprland,niri --with-backports -y
 bash scripts/debian-install.sh --profile all --with-backports --with-nonfree -y
 ```
 
+GitHub 下载慢时，推荐只拉脚本和配置：
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/syx315090/Shorin-Linux-Guide.git
+cd Shorin-Linux-Guide
+git sparse-checkout set scripts docs legacy README.md LICENSE .gitignore
+bash scripts/debian-install.sh --profile all --with-backports --with-nonfree --no-wallpapers -y
+```
+
 ## 适配策略
 
 - Debian 默认使用 `apt` 和官方软件源，不安装 AUR 工具。
@@ -46,6 +55,7 @@ bash scripts/debian-install.sh --profile all --with-backports --with-nonfree -y
 - 脚本会配置 `zh_CN.UTF-8`、Fcitx5 环境变量、Flathub、NetworkManager、Bluetooth、CUPS。
 - 用户配置默认安装给执行 sudo 的用户；需要指定时使用 `--target-user 用户名`。
 - 可以用普通用户配合 sudo 运行，也可以直接用 root 运行；root 运行时建议显式传入 `--target-user 用户名`。
+- `--no-wallpapers` 会跳过壁纸复制，适合 sparse clone 或只想安装配置的情况。
 
 ## 配置文件处理
 

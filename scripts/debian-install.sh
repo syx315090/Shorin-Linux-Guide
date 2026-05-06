@@ -6,6 +6,7 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 PROFILES=()
 COPY_DOTFILES=1
+COPY_WALLPAPERS=1
 ENABLE_BACKPORTS=0
 ENABLE_NONFREE=0
 DRY_RUN=0
@@ -37,6 +38,7 @@ Options:
   --with-backports     Add Debian backports and prefer it for Hyprland/Niri packages
   --with-nonfree       Add contrib, non-free and non-free-firmware components when creating backports
   --no-dotfiles        Install packages only
+  --no-wallpapers      Do not copy wallpapers; useful with sparse clone
   --dry-run            Print actions without changing the system
   -y, --yes            Non-interactive apt mode
   -h, --help           Show this help
@@ -71,6 +73,10 @@ parse_args() {
         ;;
       --no-dotfiles)
         COPY_DOTFILES=0
+        shift
+        ;;
+      --no-wallpapers)
+        COPY_WALLPAPERS=0
         shift
         ;;
       --dry-run)
@@ -795,7 +801,9 @@ install_dotfiles() {
   copy_tree "$REPO_ROOT/legacy/.config/wlogout" "$home/.config/wlogout"
   copy_tree "$REPO_ROOT/legacy/.config/niriswitcher" "$home/.config/niriswitcher"
   copy_tree "$REPO_ROOT/legacy/.local/share/fcitx5" "$home/.local/share/fcitx5"
-  copy_tree "$REPO_ROOT/wallpapers" "$home/Pictures/Shorin-Wallpapers"
+  if [[ "$COPY_WALLPAPERS" -eq 1 ]]; then
+    copy_tree "$REPO_ROOT/wallpapers" "$home/Pictures/Shorin-Wallpapers"
+  fi
 
   if has_profile hyprland; then
     copy_tree "$REPO_ROOT/legacy/.config/hypr" "$home/.config/hypr"

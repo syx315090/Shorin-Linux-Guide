@@ -76,6 +76,28 @@ reboot
 
 ## 4. 下载项目
 
+### 推荐：只下载脚本和配置
+
+国内直连 GitHub 慢时，不建议完整 clone。仓库里的图片和壁纸文件比较多，Debian 新装系统只需要脚本、文档和 `legacy` 配置目录即可。
+
+```bash
+mkdir -p ~/Projects
+cd ~/Projects
+git clone --filter=blob:none --sparse https://github.com/syx315090/Shorin-Linux-Guide.git
+cd Shorin-Linux-Guide
+git sparse-checkout set scripts docs legacy README.md LICENSE .gitignore
+```
+
+这种方式不会下载 `pictures` 和 `wallpapers`，速度会快很多。运行脚本时加上 `--no-wallpapers`：
+
+```bash
+bash scripts/debian-install.sh --profile all --with-backports --with-nonfree --no-wallpapers -y
+```
+
+### 完整下载
+
+如果网络正常，或者你需要项目里的图片和壁纸资源，可以完整 clone。
+
 进入一个你习惯放源码的位置，例如：
 
 ```bash
@@ -86,6 +108,17 @@ cd Shorin-Linux-Guide
 ```
 
 如果你使用的是自己的 fork，把上面的 Git 地址换成你的仓库地址。
+
+### 更快的离线办法
+
+如果你有另一台网络更好的电脑，可以提前下载好项目压缩包或 clone 好仓库，然后用 U 盘复制到 Debian：
+
+```bash
+cd /path/to/Shorin-Linux-Guide
+bash scripts/debian-install.sh --profile all --with-backports --with-nonfree -y
+```
+
+如果你维护了 Gitee、GitCode 或内网镜像，也可以把上面的 GitHub 地址换成镜像地址。脚本不依赖 GitHub，只要求目录里有 `scripts/debian-install.sh`、`legacy`，以及可选的 `wallpapers`。
 
 ## 5. 选择安装方案
 
@@ -134,7 +167,7 @@ bash scripts/debian-install.sh --profile all --with-backports --with-nonfree --t
 - 写入 Fcitx5 输入法环境变量
 - 添加 Flathub
 - 启用 NetworkManager、bluetooth、cups、gdm3 或 sddm
-- 复制 `legacy/.config`、`legacy/.local/share/fcitx5`、`wallpapers`
+- 复制 `legacy/.config`、`legacy/.local/share/fcitx5`、可选复制 `wallpapers`
 - 为 Hyprland/Niri 生成 Debian 可启动的基础配置
 - 备份已有配置到 `.bak.时间戳`
 
@@ -164,9 +197,10 @@ sudo apt update
 sudo apt install -y git ca-certificates bash
 mkdir -p ~/Projects
 cd ~/Projects
-git clone https://github.com/syx315090/Shorin-Linux-Guide.git
+git clone --filter=blob:none --sparse https://github.com/syx315090/Shorin-Linux-Guide.git
 cd Shorin-Linux-Guide
-bash scripts/debian-install.sh --profile all --with-backports --with-nonfree -y
+git sparse-checkout set scripts docs legacy README.md LICENSE .gitignore
+bash scripts/debian-install.sh --profile all --with-backports --with-nonfree --no-wallpapers -y
 reboot
 ```
 
@@ -177,9 +211,10 @@ apt update
 apt install -y git ca-certificates bash sudo
 mkdir -p /opt
 cd /opt
-git clone https://github.com/syx315090/Shorin-Linux-Guide.git
+git clone --filter=blob:none --sparse https://github.com/syx315090/Shorin-Linux-Guide.git
 cd Shorin-Linux-Guide
-bash scripts/debian-install.sh --profile all --with-backports --with-nonfree --target-user 你的用户名 -y
+git sparse-checkout set scripts docs legacy README.md LICENSE .gitignore
+bash scripts/debian-install.sh --profile all --with-backports --with-nonfree --no-wallpapers --target-user 你的用户名 -y
 reboot
 ```
 
