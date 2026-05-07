@@ -9,6 +9,8 @@ COPY_WALLPAPERS=1
 ENABLE_BACKPORTS=1
 ENABLE_NONFREE=0
 ENABLE_OBS_NIRI=1
+APT_MAIN_MIRROR_BASE="http://mirrors.ustc.edu.cn/debian"
+APT_SECURITY_MIRROR_BASE="http://mirrors.ustc.edu.cn/debian-security"
 DRY_RUN=0
 ASSUME_YES=0
 TARGET_USER="${SUDO_USER:-${USER:-}}"
@@ -34,6 +36,8 @@ Usage:
 
 Options:
   --target-user USER   User that receives dotfiles and user-level settings
+  --main-mirror URL    Debian archive mirror base URL
+  --security-mirror URL  Debian security mirror base URL
   --no-backports       Do not add Debian backports; not recommended for Niri
   --no-obs-niri        Do not add the OBS/DankLinux Niri repository fallback
   --with-nonfree       Add contrib, non-free and non-free-firmware components when creating backports
@@ -56,6 +60,16 @@ parse_args() {
       --target-user)
         [[ $# -ge 2 ]] || die "--target-user requires a value"
         TARGET_USER="$2"
+        shift 2
+        ;;
+      --main-mirror)
+        [[ $# -ge 2 ]] || die "--main-mirror requires a value"
+        APT_MAIN_MIRROR_BASE="$2"
+        shift 2
+        ;;
+      --security-mirror)
+        [[ $# -ge 2 ]] || die "--security-mirror requires a value"
+        APT_SECURITY_MIRROR_BASE="$2"
         shift 2
         ;;
       --with-backports)
@@ -134,6 +148,30 @@ require_debian() {
 
 target_home() {
   getent passwd "$TARGET_USER" | cut -d: -f6
+}
+
+normalize_mirror_base() {
+  printf '%s' "$1" | sed 's:/*$::'
+}
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed 's/[&|\\]/\\&/g'
+}
+
+backup_file_copy() {
+  local path="$1"
+  [[ -e "$path" || -L "$path" ]] || return 0
+  local backup="${path}.bak.$(date +%Y%m%d%H%M%S)"
+  warn "Backing up APT source file: $path -> $backup"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] copy %s to %s\n' "$path" "$backup"
+    return 0
+  fi
+  if [[ "$(id -u)" -eq 0 ]]; then
+    cp -a "$path" "$backup"
+  else
+    sudo cp -a "$path" "$backup"
+  fi
 }
 
 apt_update() {
@@ -264,6 +302,42 @@ enable_obs_niri_repo() {
   fi
 }
 
+configure_apt_mirrors() {
+  APT_MAIN_MIRROR_BASE="$(normalize_mirror_base "$APT_MAIN_MIRROR_BASE")"
+  APT_SECURITY_MIRROR_BASE="$(normalize_mirror_base "$APT_SECURITY_MIRROR_BASE")"
+
+  local main_mirror_escaped
+  local security_mirror_escaped
+  main_mirror_escaped="$(escape_sed_replacement "$APT_MAIN_MIRROR_BASE")"
+  security_mirror_escaped="$(escape_sed_replacement "$APT_SECURITY_MIRROR_BASE")"
+
+  local files=()
+  [[ -f /etc/apt/sources.list ]] && files+=(/etc/apt/sources.list)
+
+  if [[ -d /etc/apt/sources.list.d ]]; then
+    local file
+    while IFS= read -r -d '' file; do
+      files+=("$file")
+    done < <(find /etc/apt/sources.list.d -maxdepth 1 -type f \( -name '*.list' -o -name '*.sources' \) -print0 2>/dev/null)
+  fi
+
+  local source_file
+  for source_file in "${files[@]}"; do
+    if grep -Eq 'deb\.debian\.org/debian|security\.debian\.org/debian-security|deb\.debian\.org/debian-security' "$source_file"; then
+      log "Rewriting Debian mirrors in $(basename -- "$source_file")"
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        printf '[dry-run] rewrite mirror URIs in %s\n' "$source_file"
+      else
+        backup_file_copy "$source_file"
+        sudo_run sed -i -E \
+          -e "s|https?://(security\.debian\.org/debian-security|deb\.debian\.org/debian-security)|${security_mirror_escaped}|g" \
+          -e "s|https?://deb\.debian\.org/debian|${main_mirror_escaped}|g" \
+          "$source_file"
+      fi
+    fi
+  done
+}
+
 enable_backports() {
   [[ "$ENABLE_BACKPORTS" -eq 1 ]] || return 0
 
@@ -278,7 +352,7 @@ enable_backports() {
   fi
 
   local list="/etc/apt/sources.list.d/${suite}-backports.list"
-  local entry="deb http://deb.debian.org/debian ${suite}-backports ${components}"
+  local entry="deb ${APT_MAIN_MIRROR_BASE} ${suite}-backports ${components}"
 
   if [[ -r "$list" ]] && grep -Fxq "$entry" "$list"; then
     log "Backports already configured: ${suite}-backports"
@@ -745,6 +819,7 @@ main() {
   log "Desktop: Niri"
   log "Target user: $TARGET_USER"
 
+  configure_apt_mirrors
   enable_backports
   apt_update
 

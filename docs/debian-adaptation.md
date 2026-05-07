@@ -33,6 +33,22 @@ root 运行时指定目标用户：
 bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree -y
 ```
 
+脚本默认使用中科大 Debian 镜像：
+
+```text
+http://mirrors.ustc.edu.cn/debian
+http://mirrors.ustc.edu.cn/debian-security
+```
+
+可通过参数替换：
+
+```bash
+bash scripts/debian-install.sh \
+  --main-mirror https://mirrors.tuna.tsinghua.edu.cn/debian \
+  --security-mirror https://mirrors.tuna.tsinghua.edu.cn/debian-security \
+  --with-nonfree --no-wallpapers -y
+```
+
 ## 脚本安装内容
 
 - Niri
@@ -50,6 +66,7 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree -y
 ## 适配策略
 
 - 默认启用 Debian backports，因为 Niri 这类 Wayland 组件更新较快。
+- 默认将 Debian APT 源中的 `deb.debian.org` 和 `security.debian.org` 替换为国内镜像，并复制备份原源文件。
 - `--no-backports` 可以关闭 backports，但不推荐。
 - Debian 官方源没有 `niri` 包时，脚本会自动添加 OBS/DankLinux 的 Niri 仓库作为 fallback。
 - `--no-obs-niri` 可以禁止添加第三方 Niri 仓库；禁止后如果官方源没有 `niri`，安装会失败。

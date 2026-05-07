@@ -40,7 +40,7 @@ ID=debian
 最简单的情况是有线网络已经可用。先测试：
 
 ```bash
-ping -c 3 deb.debian.org
+ping -c 3 mirrors.ustc.edu.cn
 ```
 
 如果能收到回复，继续下一步。
@@ -106,6 +106,22 @@ cd Shorin-Linux-Guide
 bash scripts/debian-install.sh --with-nonfree --no-wallpapers -y
 ```
 
+脚本默认把 Debian APT 源切换为中科大镜像：
+
+```text
+http://mirrors.ustc.edu.cn/debian
+http://mirrors.ustc.edu.cn/debian-security
+```
+
+如果你想换成其他国内镜像，可以指定：
+
+```bash
+bash scripts/debian-install.sh \
+  --main-mirror https://mirrors.tuna.tsinghua.edu.cn/debian \
+  --security-mirror https://mirrors.tuna.tsinghua.edu.cn/debian-security \
+  --with-nonfree --no-wallpapers -y
+```
+
 如果你完整下载了仓库，并且想复制壁纸：
 
 ```bash
@@ -123,6 +139,7 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree --no
 脚本会自动执行这些工作：
 
 - 添加 Debian backports 源
+- 默认把 Debian APT 源切换到国内镜像，并备份原源文件
 - Debian 官方源没有 Niri 时，添加 OBS/DankLinux 的 Niri 仓库
 - 安装基础桌面包、字体、输入法、声音、蓝牙、打印、Flatpak
 - 安装 Niri、SDDM、Waybar 和常用 Wayland 组件
