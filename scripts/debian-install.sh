@@ -8,6 +8,7 @@ COPY_DOTFILES=1
 COPY_WALLPAPERS=1
 ENABLE_BACKPORTS=1
 ENABLE_NONFREE=0
+ENABLE_OBS_NIRI=1
 DRY_RUN=0
 ASSUME_YES=0
 TARGET_USER="${SUDO_USER:-${USER:-}}"
@@ -34,6 +35,7 @@ Usage:
 Options:
   --target-user USER   User that receives dotfiles and user-level settings
   --no-backports       Do not add Debian backports; not recommended for Niri
+  --no-obs-niri        Do not add the OBS/DankLinux Niri repository fallback
   --with-nonfree       Add contrib, non-free and non-free-firmware components when creating backports
   --no-dotfiles        Install packages only
   --no-wallpapers      Do not copy wallpapers; useful with sparse clone
@@ -63,6 +65,10 @@ parse_args() {
         ;;
       --no-backports)
         ENABLE_BACKPORTS=0
+        shift
+        ;;
+      --no-obs-niri)
+        ENABLE_OBS_NIRI=0
         shift
         ;;
       --with-nonfree)
@@ -197,30 +203,64 @@ apt_install_from_backports() {
   fi
 }
 
-apt_install_required_from_backports() {
-  local suite="$1"
-  shift
+obs_niri_repo_name() {
+  # shellcheck disable=SC1091
+  . /etc/os-release
 
-  local missing=()
-  local pkg
-  for pkg in "$@"; do
-    if ! apt_has_package "$pkg"; then
-      missing+=("$pkg")
-    fi
-  done
+  case "${VERSION_ID:-}" in
+    13)
+      printf 'Debian_13\n'
+      return 0
+      ;;
+  esac
 
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    die "Required Debian packages are unavailable: ${missing[*]}. Use Debian 13/trixie or newer with backports enabled."
+  case "${VERSION_CODENAME:-}" in
+    sid|unstable)
+      printf 'Debian_Unstable\n'
+      return 0
+      ;;
+    trixie|forky|testing)
+      printf 'Debian_Testing\n'
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+enable_obs_niri_repo() {
+  [[ "$ENABLE_OBS_NIRI" -eq 1 ]] || return 1
+
+  local repo_name
+  if ! repo_name="$(obs_niri_repo_name)"; then
+    die "Niri is not available from the configured Debian repositories, and no OBS/DankLinux repository mapping exists for this Debian release. Use Debian 13/trixie or newer."
   fi
 
-  if [[ "$ENABLE_BACKPORTS" -eq 1 ]]; then
-    local args=(apt-get -t "$suite-backports" install)
-    if [[ "$ASSUME_YES" -eq 1 ]]; then
-      args+=(-y)
-    fi
-    sudo_run "${args[@]}" "$@"
+  local base_url="https://download.opensuse.org/repositories/home:/AvengeMedia:/danklinux/${repo_name}"
+  local list="/etc/apt/sources.list.d/home_AvengeMedia_danklinux.list"
+  local keyring="/etc/apt/trusted.gpg.d/home_AvengeMedia_danklinux.gpg"
+  local entry="deb ${base_url}/ /"
+
+  if [[ -r "$list" ]] && grep -Fxq "$entry" "$list" && [[ -r "$keyring" ]]; then
+    log "OBS/DankLinux Niri repository already configured: $repo_name"
+    return 0
+  fi
+
+  warn "Niri is not in Debian official repositories on this system; adding OBS/DankLinux repository: $repo_name"
+  warn "This third-party repository is maintained outside Debian and will be trusted by apt."
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '[dry-run] write %s: %s\n' "$list" "$entry"
+    printf '[dry-run] install key %s/Release.key to %s\n' "$base_url" "$keyring"
+    return 0
+  fi
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    printf '%s\n' "$entry" >"$list"
+    curl -fsSL "${base_url}/Release.key" | gpg --dearmor >"$keyring"
   else
-    apt_install "$@"
+    printf '%s\n' "$entry" | sudo tee "$list" >/dev/null
+    curl -fsSL "${base_url}/Release.key" | gpg --dearmor | sudo tee "$keyring" >/dev/null
   fi
 }
 
@@ -276,7 +316,17 @@ install_niri_packages() {
   # shellcheck disable=SC1091
   . /etc/os-release
   local suite="${VERSION_CODENAME:-stable}"
-  apt_install_required_from_backports "$suite" niri
+
+  if ! apt_has_package niri; then
+    enable_obs_niri_repo
+    apt_update
+  fi
+
+  if ! apt_has_package niri; then
+    die "Niri package is unavailable after enabling backports and the OBS/DankLinux fallback repository."
+  fi
+
+  apt_install niri
   apt_install_from_backports "$suite" xwayland-satellite swaybg swayidle
 
   if [[ "$DRY_RUN" -ne 1 ]] && ! command -v niri >/dev/null 2>&1; then

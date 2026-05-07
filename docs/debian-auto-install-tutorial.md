@@ -123,6 +123,7 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree --no
 脚本会自动执行这些工作：
 
 - 添加 Debian backports 源
+- Debian 官方源没有 Niri 时，添加 OBS/DankLinux 的 Niri 仓库
 - 安装基础桌面包、字体、输入法、声音、蓝牙、打印、Flatpak
 - 安装 Niri、SDDM、Waybar 和常用 Wayland 组件
 - 配置 `zh_CN.UTF-8` locale
@@ -181,7 +182,7 @@ reboot
 
 这是正常的。Debian 和 Arch 包名、收录范围不同，脚本会跳过当前 Debian 源里没有的包，尽量继续完成可安装部分。
 
-如果 Niri 被跳过，优先确认你使用的是 Debian 13/trixie 或更新版本，并且没有使用 `--no-backports`。
+如果 Niri 安装失败，优先确认你使用的是 Debian 13/trixie 或更新版本，并且没有使用 `--no-obs-niri`。
 
 ### 登录界面没有 Niri 选项
 
@@ -192,7 +193,7 @@ command -v niri
 ls /usr/share/wayland-sessions/
 ```
 
-如果 `command -v niri` 没有输出，说明 Debian 当前软件源没有安装到 Niri。建议升级到 Debian 13/trixie 或更新版本后重新运行脚本。
+如果 `command -v niri` 没有输出，说明当前软件源没有安装到 Niri。新版脚本会在 Debian 官方源没有 `niri` 时自动添加 OBS/DankLinux 仓库；请 `git pull` 后重新运行脚本。
 
 如果有 `niri` 命令，但 `/usr/share/wayland-sessions/` 里没有 `niri.desktop`，重新运行新版脚本：
 

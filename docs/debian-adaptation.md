@@ -51,6 +51,8 @@ bash scripts/debian-install.sh --target-user 你的用户名 --with-nonfree -y
 
 - 默认启用 Debian backports，因为 Niri 这类 Wayland 组件更新较快。
 - `--no-backports` 可以关闭 backports，但不推荐。
+- Debian 官方源没有 `niri` 包时，脚本会自动添加 OBS/DankLinux 的 Niri 仓库作为 fallback。
+- `--no-obs-niri` 可以禁止添加第三方 Niri 仓库；禁止后如果官方源没有 `niri`，安装会失败。
 - `--with-nonfree` 会在创建 backports 源时加入 `contrib non-free non-free-firmware`。
 - `--no-wallpapers` 会跳过壁纸复制，适合 sparse clone。
 - Niri 是必需包，安装不到会直接报错；其他辅助包缺失时会输出 warning 并继续。
@@ -86,4 +88,5 @@ Waybar 会生成 `~/.config/waybar/config-niri` 和 `~/.config/waybar/style.css`
 
 - 建议使用 Debian 13/trixie 或更新版本。
 - Debian 12/bookworm 的 Niri 包可用性有限。
+- OBS/DankLinux 是第三方软件源，不属于 Debian 官方仓库。
 - 安装完成后重启，在 SDDM 登录界面选择 Niri 会话。
