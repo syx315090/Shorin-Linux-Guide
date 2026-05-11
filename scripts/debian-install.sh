@@ -383,7 +383,7 @@ install_base_packages() {
     firefox-esr thunar pavucontrol brightnessctl playerctl wl-clipboard grim slurp swappy satty \
     mako-notifier fuzzel waybar swaylock wlogout copyq kitty foot ghostty \
     fcitx5 fcitx5-chinese-addons fcitx5-rime fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
-    fcitx5-frontend-qt5 kde-config-fcitx5 qt5ct qt6ct im-config
+    fcitx5-frontend-qt5 kde-config-fcitx5 qt5ct qt6ct im-config cliphist
 }
 
 install_niri_packages() {
@@ -403,6 +403,15 @@ install_niri_packages() {
 
   apt_install niri
   apt_install_from_backports "$suite" xwayland-satellite swaybg swayidle
+
+  log "Installing GPU drivers and firmware"
+  apt_install libgl1-mesa-dri mesa-vulkan-drivers firmware-linux
+
+  if lspci -nn 2>/dev/null | grep -qi 'vga.*nvidia\|3d.*nvidia'; then
+    warn "NVIDIA GPU detected. For Wayland support the proprietary driver is usually required."
+    warn "Consider: apt install nvidia-driver firmware-misc-nonfree"
+    warn "Then reboot before launching Niri."
+  fi
 
   if [[ "$DRY_RUN" -ne 1 ]] && ! command -v niri >/dev/null 2>&1; then
     die "Niri package installation finished, but the niri command was not found."
@@ -611,10 +620,13 @@ input {
 
 prefer-no-csd
 
-spawn-sh-at-startup "swaybg -i ~/Pictures/Shorin-Wallpapers/wallhaven-vpq7m8.png -m fill"
+spawn-sh-at-startup "swaybg -i ~/Pictures/Shorin-Wallpapers/wallhaven-vpq7m8.png -m stretch"
 spawn-sh-at-startup "waybar -c ~/.config/waybar/config-niri -s ~/.config/waybar/style.css"
 spawn-at-startup "mako"
 spawn-at-startup "fcitx5"
+spawn-at-startup "swayidle" "-w" \
+    "timeout" "600" "swaylock" "-f" \
+    "before-sleep" "swaylock" "-f"
 spawn-at-startup "wl-paste" "--watch" "cliphist" "store"
 
 layout {
