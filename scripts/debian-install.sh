@@ -155,7 +155,7 @@ normalize_mirror_base() {
 }
 
 escape_sed_replacement() {
-  printf '%s' "$1" | sed 's/[&|\\]/\\&/g'
+  printf '%s' "$1" | sed 's/[&#\\]/\\&/g'
 }
 
 backup_file_copy() {
@@ -330,8 +330,9 @@ configure_apt_mirrors() {
       else
         backup_file_copy "$source_file"
         sudo_run sed -i -E \
-          -e "s|https?://(security\.debian\.org/debian-security|deb\.debian\.org/debian-security)|${security_mirror_escaped}|g" \
-          -e "s|https?://deb\.debian\.org/debian|${main_mirror_escaped}|g" \
+          -e "s#https?://security\.debian\.org/debian-security#${security_mirror_escaped}#g" \
+          -e "s#https?://deb\.debian\.org/debian-security#${security_mirror_escaped}#g" \
+          -e "s#https?://deb\.debian\.org/debian#${main_mirror_escaped}#g" \
           "$source_file"
       fi
     fi
