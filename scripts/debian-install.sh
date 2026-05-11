@@ -479,12 +479,12 @@ install_niri_session_file() {
   sudo_run mkdir -p /usr/share/wayland-sessions
   sudo_run mkdir -p /usr/share/xdg-desktop-portal
 
-  if command -v niri-session >/dev/null 2>&1; then
+  if command -v niri >/dev/null 2>&1; then
+    exec_line="niri --session"
+  elif command -v niri-session >/dev/null 2>&1; then
     exec_line="niri-session"
-  elif command -v niri >/dev/null 2>&1; then
-    exec_line="dbus-run-session niri --session"
   else
-    die "Cannot create Niri session file because neither niri-session nor niri was found."
+    die "Cannot create Niri session file because neither niri nor niri-session was found."
   fi
 
   if [[ "$(id -u)" -eq 0 ]]; then
@@ -611,6 +611,7 @@ input {
 
 prefer-no-csd
 
+spawn-sh-at-startup "swaybg -i ~/Pictures/Shorin-Wallpapers/wallhaven-vpq7m8.png -m fill"
 spawn-sh-at-startup "waybar -c ~/.config/waybar/config-niri -s ~/.config/waybar/style.css"
 spawn-at-startup "mako"
 spawn-at-startup "fcitx5"
