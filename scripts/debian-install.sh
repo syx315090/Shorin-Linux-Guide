@@ -624,9 +624,7 @@ spawn-sh-at-startup "swaybg -i ~/Pictures/Shorin-Wallpapers/wallhaven-vpq7m8.png
 spawn-sh-at-startup "waybar -c ~/.config/waybar/config-niri -s ~/.config/waybar/style.css"
 spawn-at-startup "mako"
 spawn-at-startup "fcitx5"
-spawn-at-startup "swayidle" "-w" \
-    "timeout" "600" "swaylock" "-f" \
-    "before-sleep" "swaylock" "-f"
+spawn-sh-at-startup "swayidle -w timeout 600 'swaylock -f' before-sleep 'swaylock -f'"
 spawn-at-startup "wl-paste" "--watch" "cliphist" "store"
 
 layout {
@@ -829,6 +827,26 @@ install_dotfiles() {
 main() {
   parse_args "$@"
   require_debian
+
+  if [[ -z "$TARGET_USER" ]]; then
+    die "Could not determine target user. Use --target-user to specify the desktop user."
+  fi
+
+  if [[ "$TARGET_USER" == "root" ]]; then
+    warn "TARGET_USER is root. Dotfiles will be installed for root, not a regular user."
+    warn "This is almost certainly wrong for a desktop install."
+    warn "Re-run with: --target-user YOUR_USERNAME"
+  fi
+
+  if ! getent passwd "$TARGET_USER" >/dev/null 2>&1; then
+    die "Target user '$TARGET_USER' does not exist on this system."
+  fi
+
+  local target_home_dir
+  target_home_dir="$(target_home)"
+  if [[ ! -d "$target_home_dir" ]]; then
+    die "Home directory for '$TARGET_USER' does not exist: $target_home_dir"
+  fi
 
   log "Desktop: Niri"
   log "Target user: $TARGET_USER"
